@@ -13,6 +13,9 @@
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![deps](https://img.shields.io/badge/dependencies-none-lightgrey)
 ![license](https://img.shields.io/badge/license-MIT-green)
+![stars](https://img.shields.io/github/stars/g305595965/cn-ecommerce-ops?style=social)
+![forks](https://img.shields.io/github/forks/g305595965/cn-ecommerce-ops?style=social)
+![issues](https://img.shields.io/github/issues/g305595965/cn-ecommerce-ops)
 
 ---
 
