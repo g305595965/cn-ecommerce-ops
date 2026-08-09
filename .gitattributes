@@ -1,0 +1,9 @@
+# 统一以 LF 存入仓库，避免 Windows 提交的 CRLF 破坏 Linux/macOS 上的
+# Python shebang（会报 bad interpreter: ...^M）
+* text=auto eol=lf
+
+*.py text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+LICENSE text eol=lf
+.gitignore text eol=lf
