@@ -31,7 +31,7 @@ PY = sys.executable
 
 SCRIPT_FILES = [
     "pricing.py", "ad_calc.py", "diagnose.py",
-    "compliance.py", "product_score.py",
+    "compliance.py", "product_score.py", "live.py",
 ]
 REF_FILES = [
     "platform-playbook.md", "product-selection.md",
@@ -153,6 +153,46 @@ def layer2() -> None:
     code, out = run([os.path.join(SCRIPTS, "pricing.py"), "--cost", "10",
                      "--price", "50", "--platform", "taobao"], cwd=ROOT)
     record("跨目录调用不报 ImportError", code == 0 and "ModuleNotFound" not in out)
+
+    # 2.8 live.py plan 能把实时数据 JSON 转成可执行命令
+    import tempfile
+    sample = {
+        "meta": {"keyword": "测试品", "platform": "douyin", "as_of": "2026-08-15"},
+        "cost": 18.5, "price": 59.9, "commission": 3.0, "shipping": 3.0,
+        "return_rate": 12.0, "ad_ratio": 15.0, "search_index": 120000,
+        "trend": "up", "supply_ratio": 4.5, "weight_kg": 0.45, "moq": 50,
+        "restock_days": 7, "cvr": 2.5, "cpc": 1.2,
+        "impression": 200000, "click": 3000, "order": 150, "paid": 90,
+    }
+    tf = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False,
+                                     encoding="utf-8")
+    json.dump(sample, tf, ensure_ascii=False)
+    tf.close()
+    code, out = run(["live.py", "plan", "--in", tf.name, "--json"])
+    try:
+        lp = json.loads(out)
+        steps = lp.get("执行顺序", [])
+        by_tool = {s["tool"]: s for s in steps}
+        # pricing 应齐备且含 --cost；product_score/ad_calc 应链式要求先算毛利率
+        pricing_ok = ("pricing.py" in by_tool
+                      and not by_tool["pricing.py"]["必填缺失"]
+                      and "--cost" in by_tool["pricing.py"]["cmd"])
+        chain_ok = ("product_score.py" in by_tool and "ad_calc.py" in by_tool
+                    and any("gross_margin" in m
+                            for m in by_tool["product_score.py"]["必填缺失"])
+                    and any("gross_margin" in m
+                            for m in by_tool["ad_calc.py"]["必填缺失"]))
+        ok = code == 0 and len(steps) == 4 and pricing_ok and chain_ok
+        detail = f"{len(steps)}步,pricing齐备={pricing_ok},链式要求毛利率={chain_ok}"
+        record("live.py plan 生成可执命令", ok, detail)
+    except json.JSONDecodeError as e:
+        record("live.py plan JSON 解析", False, str(e))
+    finally:
+        os.unlink(tf.name)
+
+    # 2.9 live.py sources 列出平台数据源
+    code, out = run(["live.py", "sources", "--platform", "douyin"])
+    record("live.py sources 正常", code == 0 and "抖店" in out)
 
 
 # ---------------- L3 结构层 ----------------

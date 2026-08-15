@@ -1,7 +1,7 @@
 ---
 name: cn-ecommerce-ops
-version: 1.0.1
-description: 国内电商全链路运营专家技能，覆盖淘宝、天猫、京东、拼多多、抖音电商、小红书、视频号六大平台。提供选品评分、定价与利润测算、广告投放ROI测算、店铺转化漏斗诊断、广告法违禁词合规检查五个可执行工具，以及平台流量机制、选品方法论、标题主图详情页优化、直播短视频、运营节奏与风控的完整知识库。当用户涉及国内电商选品、定价、算利润、算ROI、投直通车或千川、做店铺诊断、优化标题主图详情页、写商品文案、直播运营、检查文案是否违反广告法、平台规则与流量玩法等问题时，应使用本技能。
+version: 1.1.0
+description: 国内电商全链路运营专家技能，覆盖淘宝、天猫、京东、拼多多、抖音电商、小红书、视频号六大平台。提供选品评分、定价与利润测算、广告投放ROI测算、店铺转化漏斗诊断、广告法违禁词合规检查五个可计算工具，以及一个实时数据桥接器(live.py)——先用 WebSearch/WebFetch 拉取当前真实佣金率、类目退货率、1688进货价、关键词搜索量，再一键灌入各计算器，实现"实时可用"的决策。当用户涉及国内电商选品、定价、算利润、算ROI、投直通车或千川、做店铺诊断、优化标题主图详情页、写商品文案、直播运营、检查文案是否违反广告法、平台规则与流量玩法，或需要查最新费率/获取实时行情来辅助决策时，应使用本技能。
 author: g305595965
 repository: https://github.com/g305595965/cn-ecommerce-ops
 license: MIT
@@ -39,6 +39,12 @@ triggers:
   - 淘宝运营
   - 抖音电商
   - 小红书运营
+  - 实时费率
+  - 实时行情
+  - 查最新佣金
+  - 1688进货价
+  - 关键词搜索量
+  - 数据以实时为准
 agent_created: true
 ---
 
@@ -77,6 +83,7 @@ agent_created: true
 | 广告怎么投／ROI 多少才不亏／出价多少 | `scripts/ad_calc.py` |
 | 有流量不出单／哪个环节有问题 | `scripts/diagnose.py` |
 | 文案能不能这么写／会不会违规 | `scripts/compliance.py` |
+| 给我实时费率/进货价/搜索量再算 | `scripts/live.py`（先 `sources`/`schema` 拉数据，再 `plan` 灌入计算器） |
 | 平台怎么起量／算法逻辑 | `references/platform-playbook.md` |
 | 标题主图详情页／短视频／直播 | `references/listing-and-content.md` |
 | 日常怎么做／大促怎么排／怎么防违规 | `references/operations-playbook.md` |
@@ -163,6 +170,49 @@ python scripts/compliance.py --file detail.txt --min-level P0
 **强制要求**：所有对外文案（标题、主图文字、详情页、短视频脚本、
 直播话术、客服话术）发布前必须扫描，P0 必须清零。
 
+### 6. 实时数据桥接 —— live.py（让前述工具"实时可用"）
+
+前五个工具再准，也依赖**真实入参**：你填的佣金率、退货率、进货价、搜索量，
+若靠拍脑袋就会失真。本脚本把"先用 WebSearch/WebFetch 拉当前真实值，
+再一键灌入计算器"标准化，解决"估算即翻车"的根因。
+
+```bash
+# 1) 看某平台该去哪拉实时数据（佣金率/退货率/进货价/搜索量）
+python scripts/live.py sources --platform douyin
+
+# 2) 看 live_data.json 该收集哪些字段、单位是什么
+python scripts/live.py schema
+
+# 3) 把拉到的实时值写入 live_data.json 后，生成可直接执行的命令
+python scripts/live.py plan --in live_data.json
+```
+
+`live.py` 自身不抓电商站点（规避反爬与 JS 渲染），而是：
+- `sources` 给出每个平台**官方公示页 / 公开指数工具**的权威 URL，由 Agent
+  用 WebFetch 拉取当前真实佣金率、类目退货率、1688 进货价、关键词搜索量；
+- `plan` 按"先 pricing 算毛利率 → 再 product_score/ad_calc 串联"的顺序，
+  生成 pricing / product_score / ad_calc / diagnose 四段命令，并标注缺失字段；
+- `stamp` 输出当前日期，报告自动带上"数据截至 YYYY-MM-DD"水印，
+  始终提醒以商家后台为准；
+- `fetch fx` 演示本机直连实时公开接口（汇率，跨境成本换算用），
+  网络受限时优雅降级并提示改用 Agent 侧 WebFetch。
+
+**关键约束**：`live_data.json` 里的 `gross_margin` 必须由 `pricing` 输出，
+`plan` 会强制要求先跑 pricing，保证五个工具的数据链路自洽（见 L2 测试）。
+
+### 共享数据模块 —— platform_fees.py
+
+`scripts/platform_fees.py` 是上述工具的**共享费率/基准表**（六大平台佣金率、
+支付费率、行业转化基准），被 pricing / diagnose / product_score 共同 import。
+可直接查看或校准：
+
+```bash
+python scripts/platform_fees.py        # 打印平台费率参考表
+```
+
+表内为公开参考区间，平台政策持续变化，使用前请以商家后台最新公示为准；
+任何数值都可用各脚本的 `--commission` 等参数手动覆盖。
+
 ## 知识库
 
 需要方法论、平台规则或实操细节时，按需读取以下文档：
@@ -215,6 +265,21 @@ python scripts/compliance.py --file detail.txt --min-level P0
 3. 用 `compliance.py` 扫描，P0 必须清零，P1 确认资质，P2 确认可举证
 4. 对照文档末尾的发布前检查清单逐项确认
 
+### 工作流 E：用实时数据决策（推荐默认路径）
+
+当用户的提问绑定到**具体商品 / 关键词 / 平台**时，不要凭记忆填参数，
+走实时链路，让结论"实时可用"：
+
+1. 用 `live.py sources --platform <平台>` 拿到该平台的实时数据源 URL
+2. 用 WebSearch / WebFetch 拉取当前真实值：
+   - 类目佣金率（平台资费公示页）
+   - 类目退货率（平台/行业报告）
+   - 1688 实时进货价（搜关键词按销量排序）
+   - 关键词月搜索量 / 趋势（巨量算数、微信指数、百度指数等）
+3. 把数值写入 `live_data.json`
+4. 用 `live.py plan --in live_data.json` 生成执行命令，按序执行
+5. 报告顶部带上"数据截至 <日期>"水印，并提示以商家后台校准
+
 ## 铁律
 
 1. **先算账，再做事。** 定价、投放、报活动、谈佣金之前，
@@ -226,7 +291,10 @@ python scripts/compliance.py --file detail.txt --min-level P0
 4. **不照搬跨平台打法。** 抖音的内容逻辑与淘宝的搜索逻辑完全不同。
 5. **数据以商家后台为准。** 本技能内置的费率、行业基准均为公开参考值，
    实际决策必须用后台真实数据校准。
-6. **不编造数据。** 无法确认的数字应明确说明其为估算或参考区间，
+6. **优先用实时数据，不凭记忆填参。** 用户给了具体商品/平台时，
+   先用 `live.py` + WebSearch/WebFetch 拉当前真实费率、退货率、进货价、
+   搜索量，再灌入计算器；记忆值只作缺失时的兜底，并明确标注为估算。
+7. **不编造数据。** 无法确认的数字应明确说明其为估算或参考区间，
    并提示用户核实来源。
 
 ## 免责声明

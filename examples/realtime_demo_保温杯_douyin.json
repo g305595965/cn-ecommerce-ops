@@ -1,0 +1,24 @@
+{
+  "meta": {
+    "keyword": "316不锈钢保温杯(500ml)",
+    "platform": "douyin",
+    "as_of": "2026-08-15",
+    "note": "实时数据来源: 抖音厨具佣金率取自抖店规则中心2026资费标准+九大扶持政策(常规2%-5%,厨具免佣可至0.6%); 进货价取自1688/义乌购316保温杯实时批发页(¥12-15); 退货率取饮具类6.7%-12%中值; 热度/趋势取自1688夏季爆款榜(趋势向上). 搜索量/供需比为估算proxy,请于巨量算数/生意参谋核实."
+  },
+  "cost": 12.0,
+  "price": 49.9,
+  "commission": 2.0,
+  "shipping": 3.0,
+  "packaging": 1.5,
+  "return_rate": 10.0,
+  "ad_ratio": 18.0,
+  "search_index": 120000,
+  "trend": "up",
+  "supply_ratio": 3.0,
+  "weight_kg": 0.4,
+  "fragile": false,
+  "moq": 10,
+  "restock_days": 3,
+  "cvr": 2.5,
+  "cpc": 1.5
+}

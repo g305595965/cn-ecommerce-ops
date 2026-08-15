@@ -11,7 +11,7 @@
 不算保本 ROI（盲目投放）、不查合规（广告法罚则起点二十万元）。
 本技能为这三件事各提供了一个可执行、可验证的确定性工具。
 
-![tests](https://img.shields.io/badge/tests-34%20passed-brightgreen)
+![tests](https://img.shields.io/badge/tests-38%20passed-brightgreen)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![deps](https://img.shields.io/badge/dependencies-none-lightgrey)
 ![license](https://img.shields.io/badge/license-MIT-green)
@@ -35,7 +35,7 @@
 
 ---
 
-## 五个可执行工具
+## 五个可执行工具 + 实时数据桥接
 
 全部使用 Python 3 标准库实现，**零第三方依赖**，每个脚本都内置自检。
 
@@ -46,6 +46,34 @@
 | `scripts/diagnose.py` | 转化漏斗诊断 | 瓶颈环节定位、优先级处方、提升模拟 |
 | `scripts/product_score.py` | 选品六维评分 | 综合得分、短板识别与改进方向 |
 | `scripts/compliance.py` | 广告法合规检查 | 175 条违禁词库，三级风险分级与整改建议 |
+| `scripts/live.py` | **实时数据桥接** | 拉取当前真实费率/进货价/搜索量，一键灌入上述计算器 |
+
+> `scripts/platform_fees.py` 是共享数据模块（六大平台佣金率、支付费率、
+> 行业转化基准），被 pricing / diagnose / product_score 共同引用，
+> 可用 `python scripts/platform_fees.py` 直接查看，数值均可用各脚本参数覆盖。
+
+### 让工具"实时可用"：live.py
+
+前五个工具再准，也依赖**真实入参**。与其凭记忆填佣金率、退货率、进货价、
+搜索量，`live.py` 把"先拉实时数据、再灌入计算器"标准化：
+
+```bash
+# 看某平台该去哪拉实时数据（官方公示页 / 公开指数工具，无需 API key）
+python scripts/live.py sources --platform douyin
+
+# 看 live_data.json 该收集哪些字段、单位是什么
+python scripts/live.py schema
+
+# 把 WebSearch/WebFetch 拉到的实时值写入 live_data.json，生成执行命令
+python scripts/live.py plan --in live_data.json
+```
+
+`plan` 会按"先 `pricing` 算毛利率 → 再 `product_score` / `ad_calc` 串联"的顺序
+生成命令，并标注缺失字段；报告自动带上"数据截至 YYYY-MM-DD"水印。
+`live.py fetch fx` 还能本机直连实时汇率接口（跨境成本换算用），网络受限时
+优雅降级并提示改用 Agent 侧 WebFetch。
+
+详见 SKILL.md 的「实时数据路由」与工作流 E。
 
 ### 亮点设计
 
