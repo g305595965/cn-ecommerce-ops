@@ -99,6 +99,12 @@ SOURCES: dict[str, dict] = {
         "关键词热度": "https://index.weixin.qq.com（微信指数，公开）",
         "进货价": "https://www.1688.com",
     },
+    "temu": {
+        "name": "Temu（跨境全托管/半托管）",
+        "佣金与费率": "https://seller.kuajingmaihuo.com（Temu 卖家中心 → 规则中心/结算规则，需登录）",
+        "关键词热度": "Temu 前台搜索联想词 + Amazon 同款 Best Seller 排名（交叉验证需求）",
+        "进货价": "https://www.1688.com（核价对标基准；Temu 核价普遍参考 1688 同款价）",
+    },
 }
 
 # 通用实时源（跨平台）
@@ -225,7 +231,7 @@ def build_plan(data: dict) -> dict:
     if plat:
         p_args.append(f"--platform {plat}")
     for f in ("cost", "price", "commission", "payment_fee", "shipping",
-              "packaging", "return_rate", "ad_ratio"):
+              "packaging", "return_rate", "ad_ratio", "daren_ratio"):
         if f in data and data[f] is not None:
             p_args.append(f"--{f.replace('_', '-')} {_q(data[f])}")
     if p_args:
@@ -457,6 +463,16 @@ def _self_test() -> int:
         print("  [PASS] 用例3d weight_kg 映射到 --weight 正确")
     else:
         print(f"  [FAIL] 用例3d weight 映射错误: {wcmd}")
+        ok = False
+
+    # 用例3e: daren_ratio 必须传入 pricing 命令
+    dr = build_plan({"platform": "douyin", "cost": 10, "price": 30,
+                     "daren_ratio": 20})
+    dcmd = next(s["cmd"] for s in dr["执行顺序"] if s["tool"] == "pricing.py")
+    if "--daren-ratio 20" in dcmd:
+        print("  [PASS] 用例3e daren_ratio 传入 pricing 正确")
+    else:
+        print(f"  [FAIL] 用例3e daren_ratio 未传入: {dcmd}")
         ok = False
 
     # 用例4: sources 注册表覆盖全部 8 平台

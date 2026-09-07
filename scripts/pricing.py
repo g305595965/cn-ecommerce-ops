@@ -44,6 +44,7 @@ def calc_profit(
     return_rate: float = 0.0,
     damage_rate: float = 0.0,
     ad_ratio: float = 0.0,
+    daren_ratio: float = 0.0,
     other: float = 0.0,
     batch: int = 100,
 ) -> dict:
@@ -91,11 +92,13 @@ def calc_profit(
     payment_cost = revenue * payment_fee / 100.0
     # 推广费：按含退款的成交额计（广告花费不因退货返还）
     ad_cost = gmv * ad_ratio / 100.0
+    # 达人/分销佣金：按有效成交额计（退款订单达人佣金随单退回）
+    daren_cost = revenue * daren_ratio / 100.0
     other_cost = batch * other
 
     total_cost = (
         goods_cost + ship_cost + pack_cost
-        + commission_cost + payment_cost + ad_cost + other_cost
+        + commission_cost + payment_cost + ad_cost + daren_cost + other_cost
     )
     net_profit = revenue - total_cost
 
@@ -105,10 +108,11 @@ def calc_profit(
     # ---------- 保本售价 ----------
     # 令净利=0 反解 price。收入与部分成本均与 price 线性相关：
     # revenue*(1 - comm% - pay%) - gmv*ad% = 固定成本
-    # => price * [ paid*(1-c-p) - batch*ad ] = 固定成本
+    # => price * [ paid*(1-c-p-d) - batch*ad ] = 固定成本
     fixed = goods_cost + ship_cost + pack_cost + other_cost
     coef = (
-        paid_orders * (1 - commission / 100.0 - payment_fee / 100.0)
+        paid_orders * (1 - commission / 100.0 - payment_fee / 100.0
+                       - daren_ratio / 100.0)
         - batch * ad_ratio / 100.0
     )
     breakeven_price = fixed / coef if coef > 0 else float("inf")
@@ -129,7 +133,8 @@ def calc_profit(
             "支付费率%": payment_fee, "快递费": shipping,
             "退货运费": return_shipping, "包材": packaging,
             "退货率%": return_rate, "损坏率%": damage_rate,
-            "推广费占比%": ad_ratio, "其他成本": other,
+            "推广费占比%": ad_ratio, "达人佣金%": daren_ratio,
+            "其他成本": other,
         },
         "单均净利": round(per_order_profit, 2),
         "净利率%": round(net_margin, 2),
@@ -143,6 +148,7 @@ def calc_profit(
             "平台佣金": {"金额": round(commission_cost, 2), "占销售额%": pct(commission_cost)},
             "支付手续费": {"金额": round(payment_cost, 2), "占销售额%": pct(payment_cost)},
             "推广费": {"金额": round(ad_cost, 2), "占销售额%": pct(ad_cost)},
+            "达人佣金": {"金额": round(daren_cost, 2), "占销售额%": pct(daren_cost)},
             "其他": {"金额": round(other_cost, 2), "占销售额%": pct(other_cost)},
         },
         "批次汇总": {
@@ -256,6 +262,26 @@ def _self_test() -> int:
     except ValueError:
         print("  [PASS] 用例6 非法输入拦截")
 
+    # 用例7：达人佣金按有效成交额扣减 (100 - 30 - 10 = 60)
+    r7 = calc_profit(cost=30, price=100, commission=0, daren_ratio=10)
+    if abs(r7["单均净利"] - 60.0) > 0.01:
+        print(f"  [FAIL] 用例7 期望 60.0, 实际 {r7['单均净利']}")
+        ok = False
+    else:
+        print("  [PASS] 用例7 达人佣金扣减")
+
+    # 用例8：达人佣金进入保本售价反解（代回净利≈0）
+    r8 = calc_profit(cost=30, price=100, commission=5, shipping=4,
+                     return_rate=20, ad_ratio=10, daren_ratio=15)
+    be8 = r8["保本售价"]
+    r8b = calc_profit(cost=30, price=be8, commission=5, shipping=4,
+                      return_rate=20, ad_ratio=10, daren_ratio=15)
+    if abs(r8b["单均净利"]) > 0.05:
+        print(f"  [FAIL] 用例8 含达人佣金保本价代回净利 {r8b['单均净利']}")
+        ok = False
+    else:
+        print("  [PASS] 用例8 含达人佣金保本价自洽")
+
     print("自检结果:", "全部通过" if ok else "存在失败")
     return 0 if ok else 1
 
@@ -277,6 +303,8 @@ def main() -> int:
     p.add_argument("--return-rate", type=float, default=0.0, help="退货率%%")
     p.add_argument("--damage-rate", type=float, default=0.0, help="退回件不可二次销售比例%%")
     p.add_argument("--ad-ratio", type=float, default=0.0, help="推广费占成交额%%")
+    p.add_argument("--daren-ratio", type=float, default=0.0,
+                   help="达人/分销佣金率%%（抖音/快手带货常用，按有效成交额计）")
     p.add_argument("--other", type=float, default=0.0, help="其他单均成本（客服/仓储分摊）")
     p.add_argument("--json", action="store_true", help="输出 JSON")
     p.add_argument("--list-platforms", action="store_true", help="列出平台费率表")
@@ -314,7 +342,7 @@ def main() -> int:
             payment_fee=payment_fee, shipping=a.shipping,
             return_shipping=a.return_shipping, packaging=a.packaging,
             return_rate=a.return_rate, damage_rate=a.damage_rate,
-            ad_ratio=a.ad_ratio, other=a.other,
+            ad_ratio=a.ad_ratio, daren_ratio=a.daren_ratio, other=a.other,
         )
     except ValueError as e:
         print(f"[错误] {e}")

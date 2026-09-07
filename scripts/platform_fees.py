@@ -78,6 +78,15 @@ PLATFORM_FEES: dict[str, dict] = {
         "commission_range": (1.0, 5.0),
         "note": "类目技术服务费；视频号带货达人佣金另计。",
     },
+    "temu": {
+        "name": "Temu（跨境）",
+        "commission": 0.0,
+        "payment_fee": 0.0,
+        "commission_range": (0.0, 15.0),
+        "note": "全托管为供货价模式、名义零佣金（平台赚进销差价，实际扣点隐含在核价中）；"
+                "半托管公开口径按类目收佣金约6%~15%（各来源不一）。保证金：全托管约1000元、"
+                "半托管约1万元。务必以 Temu 卖家中心(seller.kuajingmaihuo.com)最新规则为准。",
+    },
 }
 
 # 行业常见转化基准（用于诊断对标）。来源为公开行业报告的经验区间，

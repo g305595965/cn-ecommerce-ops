@@ -1,7 +1,7 @@
 ---
 name: cn-ecommerce-ops
-version: 1.1.0
-description: 国内电商全链路运营专家技能，覆盖淘宝、天猫、京东、拼多多、抖音电商、小红书、视频号六大平台。提供选品评分、定价与利润测算、广告投放ROI测算、店铺转化漏斗诊断、广告法违禁词合规检查五个可计算工具，以及一个实时数据桥接器(live.py)——先用 WebSearch/WebFetch 拉取当前真实佣金率、类目退货率、1688进货价、关键词搜索量，再一键灌入各计算器，实现"实时可用"的决策。当用户涉及国内电商选品、定价、算利润、算ROI、投直通车或千川、做店铺诊断、优化标题主图详情页、写商品文案、直播运营、检查文案是否违反广告法、平台规则与流量玩法，或需要查最新费率/获取实时行情来辅助决策时，应使用本技能。
+version: 1.2.0
+description: 国内电商全链路运营专家技能，覆盖淘宝、天猫、京东、拼多多、抖音电商、小红书、视频号、Temu八大平台。提供选品评分、定价与利润测算（含达人佣金）、广告投放ROI测算、店铺转化漏斗诊断、广告法违禁词合规检查、商品标题生成、备货与资金占用测算七个可计算工具，以及一个实时数据桥接器(live.py)——先用 WebSearch/WebFetch 拉取当前真实佣金率、类目退货率、1688进货价、关键词搜索量，再一键灌入各计算器，实现"实时可用"的决策。当用户涉及国内电商选品、定价、算利润、算ROI、投直通车或千川、做店铺诊断、写商品标题、算备货量、优化标题主图详情页、写商品文案、直播运营、检查文案是否违反广告法、Temu全托管半托管报价与合规、平台规则与流量玩法，或需要查最新费率/获取实时行情来辅助决策时，应使用本技能。
 author: g305595965
 repository: https://github.com/g305595965/cn-ecommerce-ops
 license: MIT
@@ -23,6 +23,10 @@ tags:
   - 漏斗诊断
   - 广告法
   - 合规
+  - Temu
+  - 跨境电商
+  - 标题生成
+  - 备货
 triggers:
   - 国内电商
   - 电商运营
@@ -45,6 +49,16 @@ triggers:
   - 1688进货价
   - 关键词搜索量
   - 数据以实时为准
+  - Temu
+  - 全托管
+  - 半托管
+  - 跨境电商
+  - 标题怎么写
+  - 商品标题
+  - 备货量
+  - 补货点
+  - 库存测算
+  - 达人佣金
 agent_created: true
 ---
 
@@ -79,14 +93,17 @@ agent_created: true
 | 用户问题类型 | 使用 |
 |------------|------|
 | 这个品能不能做 | `scripts/product_score.py` + `references/product-selection.md` |
-| 卖多少钱／能赚多少／保本价 | `scripts/pricing.py` |
+| 卖多少钱／能赚多少／保本价／达人佣金怎么算 | `scripts/pricing.py` |
 | 广告怎么投／ROI 多少才不亏／出价多少 | `scripts/ad_calc.py` |
 | 有流量不出单／哪个环节有问题 | `scripts/diagnose.py` |
 | 文案能不能这么写／会不会违规 | `scripts/compliance.py` |
+| 标题怎么写／批量出标题候选 | `scripts/title_gen.py` + `references/listing-and-content.md` |
+| 备多少货／会不会断货／压多少资金 | `scripts/inventory.py` |
 | 给我实时费率/进货价/搜索量再算 | `scripts/live.py`（先 `sources`/`schema` 拉数据，再 `plan` 灌入计算器） |
 | 平台怎么起量／算法逻辑 | `references/platform-playbook.md` |
 | 标题主图详情页／短视频／直播 | `references/listing-and-content.md` |
 | 日常怎么做／大促怎么排／怎么防违规 | `references/operations-playbook.md` |
+| Temu 全托管半托管／跨境报价与合规 | `references/crossborder-temu.md` |
 
 ## 可执行工具
 
@@ -105,7 +122,9 @@ python scripts/pricing.py --cost 35 --price 129 --platform douyin \
 ```
 
 输出单均净利、净利率、毛利率、**保本售价**、**保本 ROI** 与成本结构。
-`--list-platforms` 查看内置平台费率参考表。
+`--list-platforms` 查看内置平台费率参考表（含 Temu）。
+抖音/快手/视频号带货场景用 `--daren-ratio` 计入达人/分销佣金
+（按有效成交额计，退款单佣金退回）。
 
 **关键用法**：在任何定价、报价、谈达人佣金、参加活动前先跑一次。
 得到的"保本售价"是价格底线，"保本 ROI"是投放的生死线。
@@ -156,7 +175,7 @@ python scripts/product_score.py --gross-margin 62 --search-index 8000 \
 
 ### 5. 合规检查 —— compliance.py
 
-内置 175 条广告法违禁词库，分三级风险：
+内置 216 条广告法违禁词库，分三级风险：
 P0 明令禁止（绝对化用语，命中即违法）、P1 需要资质、P2 真实性约束。
 
 ```bash
@@ -170,9 +189,40 @@ python scripts/compliance.py --file detail.txt --min-level P0
 **强制要求**：所有对外文案（标题、主图文字、详情页、短视频脚本、
 直播话术、客服话术）发布前必须扫描，P0 必须清零。
 
-### 6. 实时数据桥接 —— live.py（让前述工具"实时可用"）
+### 6. 标题生成 —— title_gen.py
 
-前五个工具再准，也依赖**真实入参**：你填的佣金率、退货率、进货价、搜索量，
+按「核心词 + 属性词 + 场景词」结构公式批量拼装候选标题，
+受平台字数上限硬约束（超长自动从尾部截断、核心词必保留），
+每条候选自动过 compliance 词库预检——**命中 P0 的候选直接剔除**，
+P1/P2 仅标注提醒。
+
+```bash
+python scripts/title_gen.py --core "汽车LED大灯" \
+    --attrs "激光,双铜管,IP68,H7" --scenes "货车,夜行" --platform pdd --n 5
+```
+
+输出按「核心词位置 + 长度利用率 + 关键词覆盖」打分排序的候选列表。
+字数上限为公开参考值（淘宝/拼多多/抖音 60 字符、京东 50、小红书 40），
+可用 `--limit` 覆盖，发布前以商家后台实际提示为准。
+
+### 7. 备货与资金占用测算 —— inventory.py
+
+把"备多少货、会不会断货、压多少资金"量化：
+补货点 ROP = 日均销量 ×（供货周期 + 安全天数），
+建议补货量按 MOQ 向上取整，资金占用 = 补货量 × 单件成本。
+
+```bash
+python scripts/inventory.py --daily-sales 50 --lead-days 7 \
+    --stock 200 --cost 18 --moq 100 --budget 8000
+```
+
+输出补货点、可售天数、建议补货量、资金占用、断货风险三级分级、
+滞销预警（在库可售 >90 天）与预算约束下的最大可备量。
+适用于自采囤货与 Temu 半托管海外仓场景；一件代发无需备货。
+
+### 8. 实时数据桥接 —— live.py（让前述工具"实时可用"）
+
+前面七个工具再准，也依赖**真实入参**：你填的佣金率、退货率、进货价、搜索量，
 若靠拍脑袋就会失真。本脚本把"先用 WebSearch/WebFetch 拉当前真实值，
 再一键灌入计算器"标准化，解决"估算即翻车"的根因。
 
@@ -198,11 +248,11 @@ python scripts/live.py plan --in live_data.json
   网络受限时优雅降级并提示改用 Agent 侧 WebFetch。
 
 **关键约束**：`live_data.json` 里的 `gross_margin` 必须由 `pricing` 输出，
-`plan` 会强制要求先跑 pricing，保证五个工具的数据链路自洽（见 L2 测试）。
+`plan` 会强制要求先跑 pricing，保证各工具的数据链路自洽（见 L2 测试）。
 
 ### 共享数据模块 —— platform_fees.py
 
-`scripts/platform_fees.py` 是上述工具的**共享费率/基准表**（六大平台佣金率、
+`scripts/platform_fees.py` 是上述工具的**共享费率/基准表**（八大平台佣金率、
 支付费率、行业转化基准），被 pricing / diagnose / product_score 共同 import。
 可直接查看或校准：
 
@@ -217,7 +267,7 @@ python scripts/platform_fees.py        # 打印平台费率参考表
 
 需要方法论、平台规则或实操细节时，按需读取以下文档：
 
-- **`references/platform-playbook.md`** —— 六大平台流量机制对比、
+- **`references/platform-playbook.md`** —— 六大国内平台流量机制对比、
   淘宝搜索权重与坑产逻辑、拼多多价格力与活动起量、抖音赛马机制与 GPM、
   京东与小红书打法、跨平台通用铁律。
 - **`references/product-selection.md`** —— 选品四道门槛（合规/利润/
@@ -229,6 +279,9 @@ python scripts/platform_fees.py        # 打印平台费率参考表
 - **`references/operations-playbook.md`** —— GMV 公式拆解、核心指标
   定义与健康区间、日周月运营节奏、提升客单价六法、大促五阶段节奏、
   售后与差评处理、平台与法律风控红线、常见问题速查。
+- **`references/crossborder-temu.md`** —— Temu 全托管/半托管/本对本
+  三模式对比、核价逻辑与保本供货价测算、欧美合规红线（欧代/EPR/CE/
+  FCC/CPC）、履约罚则口径、与本技能工具的串联路径。
 
 ## 典型工作流
 
@@ -260,10 +313,11 @@ python scripts/platform_fees.py        # 打印平台费率参考表
 
 ### 工作流 D：撰写或审核商品文案
 
-1. 读 `references/listing-and-content.md` 对应章节获取结构模板
-2. 按平台字数限制与结构公式撰写
-3. 用 `compliance.py` 扫描，P0 必须清零，P1 确认资质，P2 确认可举证
-4. 对照文档末尾的发布前检查清单逐项确认
+1. 用 `title_gen.py` 按平台字数上限批量产出候选标题（P0 候选已自动剔除）
+2. 读 `references/listing-and-content.md` 对应章节获取结构模板
+3. 按平台字数限制与结构公式撰写
+4. 用 `compliance.py` 扫描，P0 必须清零，P1 确认资质，P2 确认可举证
+5. 对照文档末尾的发布前检查清单逐项确认
 
 ### 工作流 E：用实时数据决策（推荐默认路径）
 
@@ -279,6 +333,16 @@ python scripts/platform_fees.py        # 打印平台费率参考表
 3. 把数值写入 `live_data.json`
 4. 用 `live.py plan --in live_data.json` 生成执行命令，按序执行
 5. 报告顶部带上"数据截至 <日期>"水印，并提示以商家后台校准
+
+### 工作流 F：Temu 报价与备货
+
+1. 读 `references/crossborder-temu.md` 选定模式（全托管/半托管）并核对合规红线
+2. 用 `pricing.py --platform temu` 反推保本供货价：全托管把供货价当售价；
+   半托管把海外仓与尾程成本计入 `--shipping` / `--other`
+3. 用 `inventory.py` 算海外仓备货：头程周期长时提高 `--safety-days`
+4. 用 `title_gen.py --limit 80` 产出英文标题候选（公开口径 80 字符，
+   以后台为准）并人工本地化
+5. 报价、备货量、罚则口径全部以 Temu 卖家中心最新公示复核
 
 ## 铁律
 

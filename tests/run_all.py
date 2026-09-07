@@ -32,10 +32,12 @@ PY = sys.executable
 SCRIPT_FILES = [
     "pricing.py", "ad_calc.py", "diagnose.py",
     "compliance.py", "product_score.py", "live.py",
+    "title_gen.py", "inventory.py",
 ]
 REF_FILES = [
     "platform-playbook.md", "product-selection.md",
     "listing-and-content.md", "operations-playbook.md",
+    "crossborder-temu.md",
 ]
 
 results: list[tuple[str, bool, str]] = []
@@ -193,6 +195,77 @@ def layer2() -> None:
     # 2.9 live.py sources 列出平台数据源
     code, out = run(["live.py", "sources", "--platform", "douyin"])
     record("live.py sources 正常", code == 0 and "抖店" in out)
+
+    # 2.10 pricing 达人佣金参数：100元售价20%佣金 → 单均净利恰降20元
+    code, out = run(["pricing.py", "--cost", "30", "--price", "100",
+                     "--platform", "douyin", "--daren-ratio", "20", "--json"])
+    try:
+        pr_d = json.loads(out)
+        code2, out2 = run(["pricing.py", "--cost", "30", "--price", "100",
+                           "--platform", "douyin", "--json"])
+        pr_b = json.loads(out2)
+        diff = pr_b["单均净利"] - pr_d["单均净利"]
+        ok = code == 0 and pr_d["单均净利"] < pr_b["单均净利"] \
+            and abs(diff - 20.0) < 0.05
+        record("pricing 达人佣金扣减", ok,
+               f"无佣金 {pr_b['单均净利']} vs 20%佣金 {pr_d['单均净利']}")
+    except json.JSONDecodeError as e:
+        record("pricing 达人佣金扣减", False, str(e))
+
+    # 2.11 live.py plan 能把 daren_ratio 灌入 pricing 命令
+    import tempfile
+    sample2 = {"meta": {"platform": "douyin"}, "cost": 10, "price": 39.9,
+               "daren_ratio": 20}
+    tf2 = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False,
+                                      encoding="utf-8")
+    json.dump(sample2, tf2, ensure_ascii=False)
+    tf2.close()
+    code, out = run(["live.py", "plan", "--in", tf2.name, "--json"])
+    os.unlink(tf2.name)
+    try:
+        lp2 = json.loads(out)
+        pcmd = next(s["cmd"] for s in lp2["执行顺序"]
+                    if s["tool"] == "pricing.py")
+        record("live plan 灌入达人佣金", "--daren-ratio 20" in pcmd, pcmd)
+    except (json.JSONDecodeError, StopIteration) as e:
+        record("live plan 灌入达人佣金", False, str(e))
+
+    # 2.12 title_gen 产出候选必须全部通过 compliance P0 扫描
+    code, out = run(["title_gen.py", "--core", "汽车LED大灯",
+                     "--attrs", "激光,双铜管,IP68,H7",
+                     "--scenes", "货车,夜行",
+                     "--platform", "pdd", "--n", "5", "--json"])
+    try:
+        tg = json.loads(out)
+        titles = [c["标题"] for c in tg["候选"]]
+        width_ok = all(c["字符数"] <= 60 for c in tg["候选"])
+        core_ok = all("汽车LED大灯" in t for t in titles)
+        p0_clean = True
+        for t in titles:
+            c2, _ = run(["compliance.py", "--text", t])
+            if c2 == 1:  # P0 命中返回码 1
+                p0_clean = False
+        ok = code == 0 and titles and width_ok and core_ok and p0_clean
+        record("title_gen 候选合规且不超长", ok,
+               f"{len(titles)} 条, 不超长={width_ok}, 含核心词={core_ok}, "
+               f"P0零命中={p0_clean}")
+    except json.JSONDecodeError as e:
+        record("title_gen JSON 解析", False, str(e))
+
+    # 2.13 inventory 公式自洽：建议补货量×成本=资金占用，且为 MOQ 整数倍
+    code, out = run(["inventory.py", "--daily-sales", "50", "--lead-days", "7",
+                     "--stock", "200", "--cost", "18", "--moq", "100",
+                     "--json"])
+    try:
+        iv = json.loads(out)
+        qty, cap = iv["建议补货量"], iv["资金占用"]
+        ok = (code == 0 and qty % 100 == 0
+              and abs(qty * 18 - cap) < 0.01
+              and iv["补货点ROP"] == 50 * (7 + 7))
+        record("inventory 公式自洽", ok,
+               f"补货 {qty} 件, 资金 {cap} 元, ROP {iv['补货点ROP']}")
+    except json.JSONDecodeError as e:
+        record("inventory JSON 解析", False, str(e))
 
 
 # ---------------- L3 结构层 ----------------
